@@ -1,0 +1,133 @@
+sudo yum update
+sudo yum install vim wget curl unzip -y
+
+yum install java-11-openjdk-devel -- new version of java 
+
+sudo setenforce 0
+sudo sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
+
+$ sudo vim /etc/sysctl.conf ----> dont provide any space before this content and remove #
+vm.max_map_count=262144
+fs.file-max=65536
+
+sudo useradd sonar
+sudo passwd sonar
+it will ask for new password  admin123 -- this should not be the same as user name
+sudo yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+sudo yum -y install postgresql11-server postgresql11
+sudo /usr/pgsql-11/bin/postgresql-11-setup initdb
+sudo systemctl start postgresql-11
+sudo systemctl enable postgresql-11
+sudo vim /var/lib/pgsql/11/data/pg_hba.conf
+"peer” to “trust” and “idnet” to “md5“.
+
+##Change this
+
+local   all             all                                     peer
+# IPv4 local connections:
+host    all             all             127.0.0.1/32            ident
+# IPv6 local connections:
+host    all             all             ::1/128                 ident
+# Allow replication connections from localhost, by a user with the
+# replication privilege.
+local   replication     all                                     peer
+host    replication     all             127.0.0.1/32            ident
+host    replication     all             ::1/128                 ident
+
+sudo vim /var/lib/pgsql/11/data/postgresql.conf
+
+after openeing for searching any string use the command :/string name example if we want to search for listen give the below :/listen
+
+just remove the # 
+sudo vim /var/lib/pgsql/11/data/pg_hba.conf
+
+original it will be like this 
+host    all             all            1 0.0.0.128/32            md5 something like that
+
+we need to make this as 
+host    all             all            0.0.0.0/0            md5
+
+sudo su - postgres
+-bash-4.2$
+-bash-4.2$: psql 
+postgres=# alter user postgres with password 'StrongPassword'; --provide password i have given as postgres as password
+ALTER ROLE
+postgres=#
+
+postgres=# create user sonar; --make sure to have space after create user
+postgres=#  create database sonar owner sonar; -- after executing it will show CREATE DATABASE
+postgres=# ALTER USER sonar WITH ENCRYPTED password 'StrongPassword'; changed password -- postgres
+
+cd /opt/
+wget https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-9.4.0.54424.zip
+unzip sonarqube-9.4.0.54424.zip
+mv sonarqube-9.4.0.54424 sonarqube
+rm sonarqube-9.4.0.54424.zip
+sudo vim /opt/sonarqube/conf/sonar.properties
+
+
+\##How you will access SonarQube Web UI
+sonar.web.host=10.38.87.160 -- it should be 0000
+sonar.web.port=9000
+
+\##Java options  --- we can copy any where 
+sonar.web.javaOpts=-server -Xms512m -Xmx512m -XX:+HeapDumpOnOutOfMemoryError
+sonar.search.javaOpts=-server -Xms512m -Xmx512m -XX:+HeapDumpOnOutOfMemoryError
+
+\##Also add the following Elasticsearch storage paths
+sonar.path.data=/var/sonarqube/data
+sonar.path.temp=/var/sonarqube/temp          
+
+uncomment below one :
+sonar.path.data=data
+sonar.path.temp=temp
+
+sudo chown -R sonar:sonar /opt/sonarqube
+sudo chown -R sonar:sonar /var/sonarqube
+
+for finding the java location: alternatives --config java
+
+give this path : /usr/lib/jvm/java-11-openjdk-11.0.14.1.1-1.el7_9.x86_64/bin/java
+
+sudo vim /etc/systemd/system/sonarqube.service
+
+[Unit]
+Description=SonarQube service
+After=syslog.target network.target
+
+[Service]
+Type=forking
+ExecStart=/opt/sonarqube/bin/linux-x86-64/sonar.sh start
+ExecStop=/opt/sonarqube/bin/linux-x86-64/sonar.sh stop
+LimitNOFILE=65536
+LimitNPROC=4096
+User=sonar
+Group=sonar
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+copy the above content
+
+sudo su-
+cd  /opt//
+ll
+chmod 777 *
+chmod 777 /opt/sonarqube/* -- for giving permissions to all the files inside the folder
+/opt/sonarqube/bin/linux-x86-64/sonar.sh change #RUNAS to be "sonar
+
+
+while performing above steps we might face some challanges it might be the issue with firewall we need to make sure to provide firewall permisson and we might get issue with wraffer size it was about heap memory we need to provide max it was 1024 and we need to ensure to make selinux command executed and also the map count and file max should be modified.
+
+
+sudo firewall-cmd --permanent --add-port=9000/tcp && sudo firewall-cmd --reload ---remove sudo
+systemctl daemon-reload
+
+sonar project token 6a1fec4478fc17218409d8bb53c87e175a88cc3b
+
+vijay: dffd0e843bba42f8f20012805db5962382542283
+
+mvn clean package sonar:sonar  -Dsonar.projectKey=studentproject   -Dsonar.host.url=http://34.125.111.90:9000   -Dsonar.login=6a1fec4478fc17218409d8bb53c87e175a88cc3b
+
+mvn clean package sonar:sonar  -Dsonar.projectKey=Studentapp  -Dsonar.host.url=http://34.125.192.218:9000 -Dsonar.login=dffd0e843bba42f8f20012805db5962382542283
